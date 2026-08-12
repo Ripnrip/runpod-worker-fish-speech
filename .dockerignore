@@ -1,0 +1,10 @@
+.git
+.github
+.env
+.env.*
+.local-artifacts
+__pycache__
+*.py[cod]
+.DS_Store
+README.md
+SOULSCROLL_ADAPTATION.md
