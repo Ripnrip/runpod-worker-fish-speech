@@ -1,0 +1,55 @@
+name: Publish SoulScroll Fish worker image
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - soulscroll/noncommercial-batch-editions
+    paths:
+      - Dockerfile
+      - src/**
+      - .github/workflows/publish-worker-image.yml
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Build and publish linux/amd64 image
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Determine immutable tag
+        id: image
+        shell: bash
+        run: echo "short_sha=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish the non-commercial worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/soulscroll-fish-worker:${{ steps.image.outputs.short_sha }}
+            ghcr.io/${{ github.repository_owner }}/soulscroll-fish-worker:noncommercial-batch-editions
