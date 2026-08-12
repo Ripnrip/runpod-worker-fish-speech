@@ -27,7 +27,9 @@ jobs:
       - name: Determine immutable tag
         id: image
         shell: bash
-        run: echo "short_sha=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "short_sha=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -51,5 +53,5 @@ jobs:
           provenance: false
           sbom: false
           tags: |
-            ghcr.io/${{ github.repository_owner }}/soulscroll-fish-worker:${{ steps.image.outputs.short_sha }}
-            ghcr.io/${{ github.repository_owner }}/soulscroll-fish-worker:noncommercial-batch-editions
+            ghcr.io/${{ steps.image.outputs.owner }}/soulscroll-fish-worker:${{ steps.image.outputs.short_sha }}
+            ghcr.io/${{ steps.image.outputs.owner }}/soulscroll-fish-worker:noncommercial-batch-editions
