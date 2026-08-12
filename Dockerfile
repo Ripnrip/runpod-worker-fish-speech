@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y curl python3-venv && \
 ENV PATH="/root/.local/bin:${PATH}"
 
 # 3. Download the model 
-RUN hf download fishaudio/s2-pro \
+RUN --mount=type=cache,target=/root/.cache/huggingface,sharing=locked hf download fishaudio/s2-pro --cache-dir /root/.cache/huggingface \
     --local-dir /app/checkpoints/s2-pro
 
 # 4. Copy your local files
