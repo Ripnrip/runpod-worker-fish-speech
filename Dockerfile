@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.cache/huggingface,sharing=locked \
       --revision "${FISH_S2_PRO_REVISION}" \
       --cache-dir /root/.cache/huggingface && \
     mkdir -p /app/checkpoints/s2-pro && \
-    cp -a "/root/.cache/huggingface/hub/models--fishaudio--s2-pro/snapshots/${FISH_S2_PRO_REVISION}/." /app/checkpoints/s2-pro/
+    cp -a "/root/.cache/huggingface/models--fishaudio--s2-pro/snapshots/${FISH_S2_PRO_REVISION}/." /app/checkpoints/s2-pro/
 COPY ./src /app/src
 RUN chmod +x /app/src/run.sh
 
