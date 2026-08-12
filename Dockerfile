@@ -1,5 +1,5 @@
-ARG VERSION=server-cuda
-FROM fishaudio/fish-speech:${VERSION}
+FROM fishaudio/fish-speech@sha256:2fad8c46e68a6090943eb05163517dbabf5d5cb79f8aa7cf95272596a6dbb42e
+ARG FISH_S2_PRO_REVISION=1de9996b6be38b745688de084d87a5633f714e4e
 
 USER root
 WORKDIR /app
@@ -15,10 +15,14 @@ RUN apt-get update && apt-get install -y curl python3-venv && \
 ENV PATH="/root/.local/bin:${PATH}"
 
 # 3. Download the model 
-RUN --mount=type=cache,target=/root/.cache/huggingface,sharing=locked hf download fishaudio/s2-pro --cache-dir /root/.cache/huggingface \
-    --local-dir /app/checkpoints/s2-pro
 
 # 4. Copy your local files
+RUN --mount=type=cache,target=/root/.cache/huggingface,sharing=locked \
+    hf download fishaudio/s2-pro \
+      --revision "${FISH_S2_PRO_REVISION}" \
+      --cache-dir /root/.cache/huggingface && \
+    mkdir -p /app/checkpoints/s2-pro && \
+    cp -a "/root/.cache/huggingface/hub/models--fishaudio--s2-pro/snapshots/${FISH_S2_PRO_REVISION}/." /app/checkpoints/s2-pro/
 COPY ./src /app/src
 RUN chmod +x /app/src/run.sh
 
