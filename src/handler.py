@@ -32,6 +32,9 @@ def normalized_job_input(job: Job) -> dict:
         if "text" in candidate:
             return candidate
 
+        if isinstance(candidate.get("prompt"), str):
+            return {**candidate, "text": candidate["prompt"]}
+
         for key in ("input", "payload", "data", "body", "request"):
             nested = candidate.get(key)
             if isinstance(nested, dict):
