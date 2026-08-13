@@ -14,6 +14,10 @@ class Job(TypedDict):
 
 async def handler(job: Job) -> dict:
     job_input = job["input"]
+    # The RunPod console can wrap the editor payload in one or more `input` envelopes.
+    # Accept both that shape and the documented API shape without changing external callers.
+    while isinstance(job_input, dict) and "text" not in job_input and isinstance(job_input.get("input"), dict):
+        job_input = job_input["input"]
 
     # Build references if provided
     references = []
