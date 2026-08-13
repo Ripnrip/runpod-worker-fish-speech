@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 FISH_PYTHON="/app/.venv/bin/python3"
 FISH_LOG="/tmp/fish.server.log"
-FISH_READY_URL="http://127.0.0.1:8080/docs"
+FISH_READY_URL="http://127.0.0.1:8080/v1/health"
 MAX_STARTUP_ATTEMPTS=120
 STARTUP_INTERVAL_SECONDS=3
 FISH_PID=""
