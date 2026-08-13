@@ -18,6 +18,7 @@ def normalized_job_input(job: Job) -> dict:
     """Find a TTS payload across RunPod API and console envelope variants."""
     candidates = [job.get("input", {})]
     visited = set()
+    prompt_candidate = None
 
     while candidates:
         candidate = candidates.pop(0)
@@ -33,12 +34,15 @@ def normalized_job_input(job: Job) -> dict:
             return candidate
 
         if isinstance(candidate.get("prompt"), str):
-            return {**candidate, "text": candidate["prompt"]}
+            prompt_candidate = candidate
 
         for key in ("input", "payload", "data", "body", "request"):
             nested = candidate.get(key)
             if isinstance(nested, dict):
                 candidates.append(nested)
+
+    if prompt_candidate is not None:
+        return {**prompt_candidate, "text": prompt_candidate["prompt"]}
 
     return job.get("input", {})
 
