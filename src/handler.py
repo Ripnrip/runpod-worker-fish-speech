@@ -8,20 +8,49 @@ from fish_speech.utils.schema import ServeReferenceAudio, ServeTTSRequest
 
 FISH_SERVER_URL = "http://127.0.0.1:8080/v1/tts"
 
+
 class Job(TypedDict):
     id: str
     input: dict
 
-async def handler(job: Job) -> dict:
-    job_input = job["input"]
-    # The RunPod console can wrap the editor payload in one or more `input` envelopes.
-    # Accept both that shape and the documented API shape without changing external callers.
-    while isinstance(job_input, dict) and "text" not in job_input and isinstance(job_input.get("input"), dict):
-        job_input = job_input["input"]
 
-    # Build references if provided
+def normalized_job_input(job: Job) -> dict:
+    """Find a TTS payload across RunPod API and console envelope variants."""
+    candidates = [job.get("input", {})]
+    visited = set()
+
+    while candidates:
+        candidate = candidates.pop(0)
+        if not isinstance(candidate, dict):
+            continue
+
+        marker = id(candidate)
+        if marker in visited:
+            continue
+        visited.add(marker)
+
+        if "text" in candidate:
+            return candidate
+
+        for key in ("input", "payload", "data", "body", "request"):
+            nested = candidate.get(key)
+            if isinstance(nested, dict):
+                candidates.append(nested)
+
+    return job.get("input", {})
+
+
+async def handler(job: Job) -> dict:
+    job_input = normalized_job_input(job)
+    if not isinstance(job_input, dict) or "text" not in job_input:
+        available_keys = sorted(job_input.keys()) if isinstance(job_input, dict) else []
+        return {
+            "error": "Missing required text field in RunPod job input",
+            "available_input_keys": available_keys,
+        }
+
     references = []
-    ref_audios = job_input.get("reference_audio", [])  # list of base64 strings
+    ref_audios = job_input.get("reference_audio", [])
     ref_texts = job_input.get("reference_text", [])
 
     for audio_b64, text in zip(ref_audios, ref_texts):
@@ -54,9 +83,7 @@ async def handler(job: Job) -> dict:
         return {"error": f"Fish server error {response.status_code}", "detail": response.text}
 
     audio_b64 = base64.b64encode(response.content).decode("utf-8")
-    return {
-        "audio_base64": audio_b64,
-        "format": request.format,
-    }
+    return {"audio_base64": audio_b64, "format": request.format}
+
 
 runpod.serverless.start({"handler": handler})
