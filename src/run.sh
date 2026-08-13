@@ -1,49 +1,64 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+FISH_PYTHON="/app/.venv/bin/python3"
+FISH_LOG="/tmp/fish.server.log"
+FISH_READY_URL="http://127.0.0.1:8080/docs"
+MAX_STARTUP_ATTEMPTS=120
+STARTUP_INTERVAL_SECONDS=3
+FISH_PID=""
+HANDLER_PID=""
 
 cleanup() {
     echo "Cleaning up..."
-    pkill -P $$
+    [[ -n "$FISH_PID" ]] && kill "$FISH_PID" 2>/dev/null || true
+    [[ -n "$HANDLER_PID" ]] && kill "$HANDLER_PID" 2>/dev/null || true
     exit 0
 }
 
 trap cleanup SIGINT SIGTERM
 
-source /app/.venv/bin/activate
+if [[ ! -x "$FISH_PYTHON" ]]; then
+    echo "Fish managed Python runtime is unavailable: $FISH_PYTHON" >&2
+    exit 1
+fi
 
-# Start fish-speech API server in background
-python3 /app/tools/api_server.py \
+# Fish Speech dependencies live in the base image’s managed virtual environment.
+"$FISH_PYTHON" -u /app/tools/api_server.py \
     --llama-checkpoint-path /app/checkpoints/s2-pro \
     --decoder-checkpoint-path /app/checkpoints/s2-pro/codec.pth \
     --device cuda \
-    2>&1 | tee /tmp/fish.server.log &
-
+    > >(tee "$FISH_LOG") 2>&1 &
 FISH_PID=$!
 
-check_server_is_running() {
-    echo "Waiting for fish-speech server..."
-    if grep -q "Uvicorn running" /tmp/fish.server.log 2>/dev/null; then
-        return 0
-    else
-        return 1
+for ((attempt = 1; attempt <= MAX_STARTUP_ATTEMPTS; attempt++)); do
+    if curl --fail --silent --show-error --max-time 2 "$FISH_READY_URL" >/dev/null 2>&1; then
+        echo "Fish Speech server is ready after $((attempt * STARTUP_INTERVAL_SECONDS)) seconds."
+        break
     fi
-}
 
-while ! check_server_is_running; do
-    # Verifica se o servidor morreu durante o startup
-    if ! kill -0 $FISH_PID 2>/dev/null; then
-        echo "Fish server failed to start. Check /tmp/fish.server.log"
-        cat /tmp/fish.server.log
+    if ! kill -0 "$FISH_PID" 2>/dev/null; then
+        echo "Fish Speech server exited during startup. Last server log lines:" >&2
+        tail -n 200 "$FISH_LOG" 2>/dev/null || true
         exit 1
     fi
-    sleep 3
+
+    if (( attempt == MAX_STARTUP_ATTEMPTS )); then
+        echo "Fish Speech server did not become ready within $((MAX_STARTUP_ATTEMPTS * STARTUP_INTERVAL_SECONDS)) seconds. Last server log lines:" >&2
+        tail -n 200 "$FISH_LOG" 2>/dev/null || true
+        exit 1
+    fi
+
+    echo "Waiting for Fish Speech server readiness (${attempt}/${MAX_STARTUP_ATTEMPTS})..."
+    sleep "$STARTUP_INTERVAL_SECONDS"
 done
 
-echo "Fish-speech server is up. Starting RunPod handler..."
-python3 -u /app/src/handler.py &
+# Run the handler through the same managed virtual environment.
+"$FISH_PYTHON" -u /app/src/handler.py &
 HANDLER_PID=$!
 
-# Se qualquer um dos dois morrer, mata tudo
-wait -n $FISH_PID $HANDLER_PID
-echo "A process exited unexpectedly, shutting down..."
-kill $FISH_PID $HANDLER_PID 2>/dev/null
+# If either critical process exits, terminate the container so RunPod surfaces the failure.
+wait -n "$FISH_PID" "$HANDLER_PID"
+echo "A critical worker process exited unexpectedly; shutting down..." >&2
+kill "$FISH_PID" "$HANDLER_PID" 2>/dev/null || true
 exit 1
